@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OS Resource Allocation Intelligence & Deadlock Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #060b16;
+      --bg-panel: #0d1527;
+      --bg-card: #131e36;
+      --bg-input: #091020;
+      --border-color: #1e2d4d;
+      --border-highlight: #2b4270;
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b9bb4;
+      --text-muted: #596985;
+      --accent-blue: #0ea5e9;
+      --accent-blue-hover: #0284c7;
+      --accent-teal: #14b8a6;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-red-bg: rgba(239, 68, 68, 0.14);
+      --accent-green-bg: rgba(16, 185, 129, 0.14);
+      --accent-purple: #8b5cf6;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Header */
+    .top-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      background-color: var(--bg-panel);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cpu-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      color: #fff;
+      box-shadow: 0 0 14px rgba(14, 165, 233, 0.4);
+    }
+
+    .brand-title h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .brand-title p {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .status-pill {
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-align: right;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      background: var(--accent-red-bg);
+    }
+
+    .status-pill.safe {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: var(--accent-green-bg);
+    }
+
+    .status-pill .status-main {
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      color: #f87171;
+      display: block;
+    }
+
+    .status-pill.safe .status-main {
+      color: #34d399;
+    }
+
+    .status-pill .status-sub {
+      font-size: 10px;
+      color: #fca5a5;
+    }
+
+    .status-pill.safe .status-sub {
+      color: #a7f3d0;
+    }
+
+    /* Preset Bar */
+    .preset-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 24px;
+      background-color: #091020;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preset-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .preset-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      margin-right: 4px;
+    }
+
+    .btn-preset {
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-preset:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+
+    .btn-preset.active {
+      background-color: var(--accent-blue);
+      color: #fff;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 12px rgba(14, 165, 233, 0.35);
+    }
+
+    /* Main Grid Layout */
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px 1fr 310px;
+      gap: 16px;
+      padding: 16px 24px;
+      flex: 1;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .col-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .panel-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-primary);
+    }
+
+    .panel-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .panel-badge.purple {
+      background: rgba(139, 92, 246, 0.16);
+      color: #c4b5fd;
+      border-color: rgba(139, 92, 246, 0.35);
+    }
+
+    /* Mode Segmented Buttons */
+    .seg-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .seg-btn {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .seg-btn.active {
+      background-color: rgba(20, 184, 166, 0.18);
+      border-color: var(--accent-teal);
+      color: #5eead4;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .form-select, .form-input {
+      width: 100%;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 7px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .form-select:focus, .form-input:focus {
+      border-color: var(--accent-blue);
+    }
+
+    .form-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 75px;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(90deg, #0ea5e9, #0284c7);
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: opacity 0.15s;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.92;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-highlight);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 11.5px;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-secondary:hover {
+      background-color: #1c2b4b;
+      border-color: var(--accent-blue);
+    }
+
+    /* Resource Inventory Items */
+    .inv-item {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 9px 10px;
+      margin-bottom: 8px;
+    }
+
+    .inv-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .inv-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .inv-free {
+      color: var(--accent-green);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .progress-track {
+      height: 5px;
+      background-color: #1a2744;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #0ea5e9);
+      transition: width 0.3s ease;
+    }
+
+    .dots-row {
+      display: flex;
+      gap: 4px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-blue);
+    }
+
+    .dot.used {
+      background-color: #3b4d71;
+    }
+
+    /* Center Column Navigation Tabs */
+    .center-tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      background-color: var(--bg-panel);
+      padding: 6px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 7px 8px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    .tab-btn.active {
+      background-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    /* RAG Canvas Box */
+    .rag-container {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      margin-top: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rag-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      margin-top: 4px;
+      color: var(--text-secondary);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .rag-footer-bar {
+      margin-top: 10px;
+      padding: 7px 10px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+
+    /* Comparative Graph Card */
+    .comp-chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .chart-box {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px;
+      height: 220px;
+      position: relative;
+    }
+
+    .chart-box h4 {
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Kernel Log */
+    .log-box {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px;
+      height: 150px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: #93c5fd;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+      line-height: 1.4;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      margin-right: 6px;
+    }
+
+    /* Right Column Recovery Cards */
+    .recovery-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      max-height: 780px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .rec-card {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    .rec-card.recommended {
+      border-color: var(--accent-blue);
+      background: linear-gradient(180deg, rgba(14, 165, 233, 0.08), rgba(9, 16, 32, 0.9));
+    }
+
+    .rec-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+    }
+
+    .rec-cost {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .rec-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .rec-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .btn-danger-outline {
+      width: 100%;
+      margin-top: 10px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 7px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-danger-outline:hover {
+      background: rgba(239, 68, 68, 0.22);
+    }
+
+    /* Tables for Matrices Tab */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      margin-top: 8px;
+    }
+
+    .matrix-table th, .matrix-table td {
+      border: 1px solid var(--border-color);
+      padding: 6px 8px;
+      text-align: center;
+    }
+
+    .matrix-table th {
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .footer {
+      text-align: center;
+      padding: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      margin-top: auto;
+    }
+
+    @media (max-width: 1200px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+      .comp-chart-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="brand-wrap">
+      <div class="cpu-badge">CPU</div>
+      <div class="brand-title">
+        <h1>OS Resource Allocation Intelligence & Deadlock Simulator</h1>
+        <p>Real-time Resource Allocation Graph • Banker's Safety Analyzer • Explainable Recovery Engine</p>
+      </div>
+    </div>
+    <div id="systemStatusPill" class="status-pill">
+      <span class="status-main" id="statusMainText">DEADLOCK DETECTED</span>
+      <span class="status-sub" id="statusSubText">3 processes locked</span>
+    </div>
+  </header>
+
+  <!-- Preset Bar -->
+  <div class="preset-bar">
+    <div class="preset-left">
+      <span class="preset-label">+ LOAD SIMULATION PRESET:</span>
+      <button class="btn-preset" onclick="loadPreset('safe', this)">Safe State (Banker's Ideal)</button>
+      <button class="btn-preset" onclick="loadPreset('circular', this)">Classic Circular Wait (2P, 2R)</button>
+      <button class="btn-preset" onclick="loadPreset('unsafe', this)">Unsafe State Warning</button>
+      <button class="btn-preset active" onclick="loadPreset('complex', this)">Complex Multi-Instance Deadlock</button>
+    </div>
+    <button class="btn-preset" onclick="loadPreset('complex', document.querySelectorAll('.btn-preset')[3])">↻ Reset</button>
+  </div>
+
+  <!-- Main 3-Column Workspace -->
+  <main class="workspace">
+
+    <!-- LEFT COLUMN -->
+    <div class="col-stack">
+      <!-- Resource Dispatcher -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⊞ Resource Dispatcher</div>
+          <span class="panel-badge">Live OS Intervention</span>
+        </div>
+
+        <div class="seg-group">
+          <button class="seg-btn active" id="modeReq" onclick="setDispatchMode('Request')">Request</button>
+          <button class="seg-btn" id="modeAlloc" onclick="setDispatchMode('Allocate')">Allocate</button>
+          <button class="seg-btn" id="modeRel" onclick="setDispatchMode('Release')">Release</button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Process</label>
+          <select id="selectProcess" class="form-select"></select>
+        </div>
+
+        <div class="form-row-2 form-group">
+          <div>
+            <label class="form-label">Resource Type</label>
+            <select id="selectResource" class="form-select"></select>
+          </div>
+          <div>
+            <label class="form-label">Instances</label>
+            <input type="number" id="inputInstances" class="form-input" value="1" min="1" max="5" />
+          </div>
+        </div>
+
+        <button class="btn-primary" id="btnDispatchExec" onclick="executeDispatch()">Execute REQUEST (1 × R0)</button>
+      </section>
+
+      <!-- System Resource Inventory -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⛁ System Resource Inventory</div>
+        </div>
+        <div id="inventoryContainer"></div>
+      </section>
+
+      <!-- Create Process / Resource -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">+ Create Process / Resource</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">New Process</label>
+          <div class="form-row-2" style="margin-bottom: 6px;">
+            <input type="text" id="newProcName" class="form-input" placeholder="Process name" />
+            <input type="number" id="newProcPri" class="form-input" value="5" min="1" max="10" />
+          </div>
+          <button class="btn-secondary" onclick="spawnProcess()">+ Spawn Process</button>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+          <label class="form-label">New Resource Type</label>
+          <div class="form-row-2" style="margin-bottom: 6px;">
+            <input type="text" id="newResName" class="form-input" placeholder="e.g. TapeDrive" />
+            <input type="number" id="newResCount" class="form-input" value="3" min="1" max="10" />
+          </div>
+          <button class="btn-secondary" onclick="addResource()">+ Add Resource</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div class="col-stack">
+      <!-- Top Sub-Navigation Tabs -->
+      <div class="center-tabs">
+        <button class="tab-btn active" onclick="switchTab('rag', this)">Resource Allocation Graph</button>
+        <button class="tab-btn" onclick="switchTab('comp', this)">Comparative Graph</button>
+        <button class="tab-btn" onclick="switchTab('matrices', this)">Allocation Matrices</button>
+        <button class="tab-btn" onclick="switchTab('banker', this)">Banker's Safety Trace</button>
+        <button class="tab-btn" onclick="switchTab('logs', this)">Process Table & Logs</button>
+      </div>
+
+      <!-- Interactive RAG Panel -->
+      <section class="panel" id="tabView-rag">
+        <div class="panel-title" style="font-size: 13.5px;">Interactive Resource Allocation Graph (RAG)</div>
+        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+          Rectangles represent resource classes. Circles represent processes. Solid green arrows are allocations; dashed amber arrows are requests.
+        </p>
+        <div class="rag-legend">
+          <span class="legend-item" style="color: #10b981;">— Allocated (R → P)</span>
+          <span class="legend-item" style="color: #f59e0b;">--- Request (P → R)</span>
+          <span class="legend-item" style="color: #ef4444;">● Deadlocked process</span>
+        </div>
+
+        <div class="rag-container">
+          <svg id="ragSvg" width="100%" height="360" viewBox="0 0 760 360"></svg>
+        </div>
+
+        <div class="rag-footer-bar" id="ragFooterStatus">
+          Current detected deadlocked processes: <strong style="color: #f87171;">P0, P1, P2</strong>
+        </div>
+      </section>
+
+      <!-- Comparative Analytics Panel (Always visible below RAG or expandable via Tab) -->
+      <section class="panel" id="comparativeGraphPanel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">📊 Comparative System & Recovery Analytics</div>
+            <p style="font-size: 11px; color: var(--text-secondary);">
+              Real-time comparison of process resource utilization, wait contention, and recovery strategy overhead costs
+            </p>
+          </div>
+          <span class="panel-badge purple">Live Chart.js Telemetry</span>
+        </div>
+
+        <div class="comp-chart-grid">
+          <div class="chart-box">
+            <h4>
+              <span>Process Allocation vs. Pending Requests</span>
+              <span style="color: var(--accent-blue);">Instances</span>
+            </h4>
+            <canvas id="processCompChart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h4>
+              <span>Recovery Strategy Cost & Rollback Impact</span>
+              <span style="color: var(--accent-amber);">Lower = Optimal</span>
+            </h4>
+            <canvas id="recoveryCompChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Hidden Tab Views for Matrices / Banker -->
+      <section class="panel" id="tabView-matrices" style="display: none;">
+        <div class="panel-title">System Allocation & Request Matrices</div>
+        <div id="matrixTableWrap"></div>
+      </section>
+
+      <section class="panel" id="tabView-banker" style="display: none;">
+        <div class="panel-title">Banker's Algorithm Safety Evaluation Trace</div>
+        <div id="bankerTraceWrap" style="margin-top: 8px; font-family: var(--font-mono); font-size: 12px; color: #a7f3d0;"></div>
+      </section>
+
+      <!-- Kernel Resource & Recovery Event Log -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">🖳 Kernel Resource & Recovery Event Log</div>
+          <span id="logCounter" style="font-size: 11px; color: var(--text-secondary);">2 events recorded</span>
+        </div>
+        <div class="log-box" id="kernelLogBox"></div>
+      </section>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-stack">
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">✦ Intelligent Recovery Engine</div>
+          <span class="panel-badge purple">Explainable cost model</span>
+        </div>
+        <p id="deadlockedListLabel" style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 10px;">
+          Deadlocked processes: <strong style="color: #f87171;">P0, P1, P2</strong>
+        </p>
+
+        <div class="recovery-list" id="recoveryListContainer"></div>
+
+        <button class="btn-danger-outline" onclick="terminateAllDeadlocked()">
+          Terminate All Deadlocked Processes
+        </button>
+      </section>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    OS Resource Allocation Intelligence & Deadlock Recovery Simulator • Educational simulation
+  </footer>
+
+  <script>
+    // --- SIMULATION STATE ---
+    let dispatchMode = 'Request';
+    let logs = [];
+    let processChartInstance = null;
+    let recoveryChartInstance = null;
+
+    let state = {
+      resources: [],
+      processes: []
+    };
+
+    const PRESETS = {
+      complex: {
+        name: "Complex Multi-Instance Deadlock",
+        resources: [
+          { id: 'R0', name: 'MutexLocks', total: 3 },
+          { id: 'R1', name: 'DBConnections', total: 2 },
+          { id: 'R2', name: 'DiskBuffers', total: 2 }
+        ],
+        processes: [
+          { id: 'P0', name: 'AuthService', priority: 8, alloc: [1, 1, 0], req: [1, 0, 0] },
+          { id: 'P1', name: 'PaymentGate', priority: 9, alloc: [1, 0, 1], req: [0, 1, 0] },
+          { id: 'P2', name: 'ReportGen', priority: 4, alloc: [0, 1, 1], req: [0, 0, 1] },
+          { id: 'P3', name: 'AuditLogger', priority: 3, alloc: [1, 0, 0], req: [0, 0, 0] }
+        ]
+      },
+      safe: {
+        name: "Safe State (Banker's Ideal)",
+        resources: [
+          { id: 'R0', name: 'MutexLocks', total: 3 },
+          { id: 'R1', name: 'DBConnections', total: 2 },
+          { id: 'R2', name: 'DiskBuffers', total: 2 }
+        ],
+        processes: [
+          { id: 'P0', name: 'AuthService', priority: 8, alloc: [1, 0, 0], req: [0, 1, 0] },
+          { id: 'P1', name: 'PaymentGate', priority: 9, alloc: [1, 1, 0], req: [0, 0, 1] },
+          { id: 'P2', name: 'ReportGen', priority: 4, alloc: [0, 0, 1], req: [0, 0, 0] },
+          { id: 'P3', name: 'AuditLogger', priority: 3, alloc: [0, 0, 0], req: [1, 0, 0] }
+        ]
+      },
+      circular: {
+        name: "Classic Circular Wait (2P, 2R)",
+        resources: [
+          { id: 'R0', name: 'MutexLocks', total: 1 },
+          { id: 'R1', name: 'DBConnections', total: 1 }
+        ],
+        processes: [
+          { id: 'P0', name: 'AuthService', priority: 8, alloc: [1, 0], req: [0, 1] },
+          { id: 'P1', name: 'PaymentGate', priority: 9, alloc: [0, 1], req: [1, 0] }
+        ]
+      },
+      unsafe: {
+        name: "Unsafe State Warning",
+        resources: [
+          { id: 'R0', name: 'MutexLocks', total: 3 },
+          { id: 'R1', name: 'DBConnections', total: 2 },
+          { id: 'R2', name: 'DiskBuffers', total: 2 }
+        ],
+        processes: [
+          { id: 'P0', name: 'AuthService', priority: 8, alloc: [1, 1, 0], req: [1, 0, 1] },
+          { id: 'P1', name: 'PaymentGate', priority: 9, alloc: [1, 0, 1], req: [0, 1, 0] },
+          { id: 'P2', name: 'ReportGen', priority: 4, alloc: [1, 0, 1], req: [0, 1, 0] }
+        ]
+      }
+    };
+
+    function addLog(msg) {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+      logs.push({ time: timeStr, msg });
+      const box = document.getElementById('kernelLogBox');
+      box.innerHTML = logs.map(l => `<div class="log-entry"><span class="log-time">[${l.time}]</span>${l.msg}</div>`).join('');
+      box.scrollTop = box.scrollHeight;
+      document.getElementById('logCounter').textContent = `${logs.length} events recorded`;
+    }
+
+    function getAvailableVector() {
+      return state.resources.map((r, rIdx) => {
+        const used = state.processes.reduce((acc, p) => acc + (p.alloc[rIdx] || 0), 0);
+        return Math.max(0, r.total - used);
+      });
+    }
+
+    // Deadlock Detection Engine (Work-Finish Safety Algorithm)
+    function detectDeadlockedProcesses() {
+      const avail = getAvailableVector();
+      const work = [...avail];
+      const finish = state.processes.map(p => {
+        const totalAlloc = p.alloc.reduce((a, b) => a + b, 0);
+        const totalReq = p.req.reduce((a, b) => a + b, 0);
+        return totalAlloc === 0 && totalReq === 0;
+      });
+
+      let progressed = true;
+      while (progressed) {
+        progressed = false;
+        for (let i = 0; i < state.processes.length; i++) {
+          if (!finish[i]) {
+            const canSatisfy = state.processes[i].req.every((reqCount, rIdx) => reqCount <= work[rIdx]);
+            if (canSatisfy) {
+              for (let rIdx = 0; rIdx < work.length; rIdx++) {
+                work[rIdx] += state.processes[i].alloc[rIdx];
+              }
+              finish[i] = true;
+              progressed = true;
+            }
+          }
+        }
+      }
+
+      const deadlocked = [];
+      state.processes.forEach((p, idx) => {
+        if (!finish[idx]) deadlocked.push(p.id);
+      });
+      return deadlocked;
+    }
+
+    function loadPreset(key, btnEl) {
+      document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+
+      const preset = JSON.parse(JSON.stringify(PRESETS[key]));
+      state.resources = preset.resources;
+      state.processes = preset.processes;
+
+      logs = [];
+      addLog("OS Resource Allocation Intelligence Engine initialized.");
+      addLog(`Loaded Scenario: ${preset.name}`);
+      renderAll();
+    }
+
+    function setDispatchMode(mode) {
+      dispatchMode = mode;
+      document.getElementById('modeReq').classList.toggle('active', mode === 'Request');
+      document.getElementById('modeAlloc').classList.toggle('active', mode === 'Allocate');
+      document.getElementById('modeRel').classList.toggle('active', mode === 'Release');
+      updateDispatchButtonLabel();
+    }
+
+    function updateDispatchButtonLabel() {
+      const rId = document.getElementById('selectResource').value || 'R0';
+      const count = document.getElementById('inputInstances').value || 1;
+      document.getElementById('btnDispatchExec').textContent =
+        `Execute ${dispatchMode.toUpperCase()} (${count} × ${rId})`;
+    }
+
+    function executeDispatch() {
+      const pId = document.getElementById('selectProcess').value;
+      const rId = document.getElementById('selectResource').value;
+      const count = parseInt(document.getElementById('inputInstances').value, 10) || 1;
+
+      const pIdx = state.processes.findIndex(p => p.id === pId);
+      const rIdx = state.resources.findIndex(r => r.id === rId);
+      if (pIdx === -1 || rIdx === -1) return;
+
+      const avail = getAvailableVector();
+      const proc = state.processes[pIdx];
+
+      if (dispatchMode === 'Request') {
+        proc.req[rIdx] += count;
+        addLog(`Process ${proc.id} (${proc.name}) requested ${count} instance(s) of ${rId}.`);
+      } else if (dispatchMode === 'Allocate') {
+        if (avail[rIdx] >= count) {
+          proc.alloc[rIdx] += count;
+          proc.req[rIdx] = Math.max(0, proc.req[rIdx] - count);
+          addLog(`Allocated ${count} × ${rId} directly to ${proc.id}.`);
+        } else {
+          proc.req[rIdx] += count;
+          addLog(`Insufficient free ${rId}; queued ${count} × ${rId} as pending request for ${proc.id}.`);
+        }
+      } else if (dispatchMode === 'Release') {
+        const rel = Math.min(proc.alloc[rIdx], count);
+        proc.alloc[rIdx] -= rel;
+        addLog(`Process ${proc.id} released ${rel} instance(s) of ${rId}.`);
+      }
+
+      renderAll();
+    }
+
+    function spawnProcess() {
+      const nameInput = document.getElementById('newProcName');
+      const priInput = document.getElementById('newProcPri');
+      const name = nameInput.value.trim() || `WorkerProc_${state.processes.length}`;
+      const pri = parseInt(priInput.value, 10) || 5;
+      const newId = `P${state.processes.length}`;
+
+      state.processes.push({
+        id: newId,
+        name,
+        priority: pri,
+        alloc: state.resources.map(() => 0),
+        req: state.resources.map(() => 0)
+      });
+
+      nameInput.value = '';
+      addLog(`Spawned new process ${newId} (${name}) with priority ${pri}.`);
+      renderAll();
+    }
+
+    function addResource() {
+      const nameInput = document.getElementById('newResName');
+      const countInput = document.getElementById('newResCount');
+      const name = nameInput.value.trim() || `Resource_${state.resources.length}`;
+      const total = parseInt(countInput.value, 10) || 2;
+      const newId = `R${state.resources.length}`;
+
+      state.resources.push({ id: newId, name, total });
+      state.processes.forEach(p => {
+        p.alloc.push(0);
+        p.req.push(0);
+      });
+
+      nameInput.value = '';
+      addLog(`Added new system resource ${newId} (${name}) with ${total} instances.`);
+      renderAll();
+    }
+
+    // --- RENDER FUNCTIONS ---
+    function renderAll() {
+      const deadlocked = detectDeadlockedProcesses();
+      const avail = getAvailableVector();
+
+      // Header Status Pill
+      const pill = document.getElementById('systemStatusPill');
+      const mainTxt = document.getElementById('statusMainText');
+      const subTxt = document.getElementById('statusSubText');
+
+      if (deadlocked.length > 0) {
+        pill.classList.remove('safe');
+        mainTxt.textContent = 'DEADLOCK DETECTED';
+        subTxt.textContent = `${deadlocked.length} processes locked`;
+      } else {
+        pill.classList.add('safe');
+        mainTxt.textContent = 'SYSTEM SAFE STATE';
+        subTxt.textContent = 'No circular wait detected';
+      }
+
+      // Selectors
+      const selProc = document.getElementById('selectProcess');
+      const prevProc = selProc.value;
+      selProc.innerHTML = state.processes.map(p => {
+        const isLocked = deadlocked.includes(p.id);
+        return `<option value="${p.id}">${p.id} - ${p.name} ${isLocked ? '(Blocked)' : '(Ready)'}</option>`;
+      }).join('');
+      if (state.processes.some(p => p.id === prevProc)) selProc.value = prevProc;
+
+      const selRes = document.getElementById('selectResource');
+      const prevRes = selRes.value;
+      selRes.innerHTML = state.resources.map((r, idx) =>
+        `<option value="${r.id}">${r.id}: ${r.name} (${avail[idx]} free)</option>`
+      ).join('');
+      if (state.resources.some(r => r.id === prevRes)) selRes.value = prevRes;
+      selRes.onchange = updateDispatchButtonLabel;
+      document.getElementById('inputInstances').oninput = updateDispatchButtonLabel;
+      updateDispatchButtonLabel();
+
+      // Inventory
+      const invHtml = state.resources.map((r, idx) => {
+        const free = avail[idx];
+        const used = r.total - free;
+        const pct = Math.round(((r.total - free) / r.total) * 100);
+        let dots = '';
+        for (let i = 0; i < r.total; i++) {
+          dots += `<span class="dot ${i < used ? '' : 'used'}"></span>`;
+        }
+        return `
+          <div class="inv-item">
+            <div class="inv-top">
+              <span>${r.id} • ${r.name}</span>
+              <span class="inv-free">${free} Free / ${r.total}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${Math.max(12, pct)}%;"></div>
+            </div>
+            <div class="dots-row">${dots}</div>
+          </div>
+        `;
+      }).join('');
+      document.getElementById('inventoryContainer').innerHTML = invHtml;
+
+      // RAG SVG Graph
+      renderRagSvg(deadlocked, avail);
+
+      // Recovery List
+      const actions = renderRecoveryEngine(deadlocked);
+
+      // Matrices & Banker Trace
+      renderMatricesAndTrace(avail, deadlocked);
+
+      // Comparative Charts
+      updateComparativeCharts(actions);
+    }
+
+    function renderRagSvg(deadlocked, avail) {
+      const svg = document.getElementById('ragSvg');
+      const width = 760;
+      const height = 360;
+
+      const resCoords = state.resources.map((r, i) => {
+        const spacing = width / (state.resources.length + 1);
+        return { x: spacing * (i + 1), y: 95 };
+      });
+
+      const procCoords = state.processes.map((p, i) => {
+        const spacing = width / (state.processes.length + 1);
+        return { x: spacing * (i + 1), y: 265 };
+      });
+
+      let defs = `
+        <defs>
+          <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+            <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#111c35" stroke-width="1"/>
+          </pattern>
+          <marker id="arrowAlloc" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,1 L7,4 L0,7 Z" fill="#10b981" />
+          </marker>
+          <marker id="arrowReq" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,1 L7,4 L0,7 Z" fill="#f59e0b" />
+          </marker>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+        <text x="18" y="28" fill="#4f6284" font-size="10" font-weight="700" letter-spacing="0.8">SYSTEM RESOURCES</text>
+        <text x="18" y="340" fill="#4f6284" font-size="10" font-weight="700" letter-spacing="0.8">PROCESSES</text>
+      `;
+
+      let edges = '';
+      state.processes.forEach((p, pIdx) => {
+        const pPos = procCoords[pIdx];
+
+        // Allocations: R -> P (Solid Green)
+        p.alloc.forEach((count, rIdx) => {
+          if (count > 0) {
+            const rPos = resCoords[rIdx];
+            const x1 = rPos.x - 8;
+            const y1 = rPos.y + 28;
+            const x2 = pPos.x - 6;
+            const y2 = pPos.y - 28;
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            edges += `
+              <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#10b981" stroke-width="1.8" marker-end="url(#arrowAlloc)" />
+              <text x="${mx - 6}" y="${my - 4}" fill="#34d399" font-size="10" font-weight="700">${count}</text>
+            `;
+          }
+        });
+
+        // Requests: P -> R (Dashed Amber)
+        p.req.forEach((count, rIdx) => {
+          if (count > 0) {
+            const rPos = resCoords[rIdx];
+            const x1 = pPos.x + 8;
+            const y1 = pPos.y - 28;
+            const x2 = rPos.x + 8;
+            const y2 = rPos.y + 28;
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            edges += `
+              <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="5,4" marker-end="url(#arrowReq)" />
+              <text x="${mx + 6}" y="${my + 4}" fill="#fbbf24" font-size="10" font-weight="700">${count}</text>
+            `;
+          }
+        });
+      });
+
+      // Resource Nodes
+      let resNodes = '';
+      state.resources.forEach((r, idx) => {
+        const { x, y } = resCoords[idx];
+        const free = avail[idx];
+        let instDots = '';
+        const startX = x - ((r.total - 1) * 5);
+        for (let i = 0; i < r.total; i++) {
+          const dotColor = i < (r.total - free) ? '#38bdf8' : '#1e293b';
+          instDots += `<circle cx="${startX + i * 10}" cy="${y + 18}" r="3" fill="${dotColor}" stroke="#0ea5e9" stroke-width="0.8"/>`;
+        }
+        resNodes += `
+          <g>
+            <rect x="${x - 42}" y="${y - 26}" width="84" height="52" rx="6" fill="#132a4a" stroke="#0ea5e9" stroke-width="1.5"/>
+            <text x="${x}" y="${y - 6}" text-anchor="middle" fill="#f0f6fc" font-size="11.5" font-weight="700">${r.id}</text>
+            <text x="${x}" y="${y + 7}" text-anchor="middle" fill="#93c5fd" font-size="9.5">${r.name}</text>
+            ${instDots}
+          </g>
+        `;
+      });
+
+      // Process Nodes
+      let procNodes = '';
+      state.processes.forEach((p, idx) => {
+        const { x, y } = procCoords[idx];
+        const isDead = deadlocked.includes(p.id);
+        const fill = isDead ? '#7f1d1d' : '#0f3942';
+        const stroke = isDead ? '#ef4444' : '#14b8a6';
+        procNodes += `
+          <g>
+            <circle cx="${x}" cy="${y}" r="24" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+            <text x="${x}" y="${y + 4}" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="700">${p.id}</text>
+            <text x="${x}" y="${y + 38}" text-anchor="middle" fill="#8b9bb4" font-size="10">${p.name}</text>
+          </g>
+        `;
+      });
+
+      svg.innerHTML = defs + edges + resNodes + procNodes;
+
+      const footer = document.getElementById('ragFooterStatus');
+      const rightLabel = document.getElementById('deadlockedListLabel');
+      if (deadlocked.length > 0) {
+        footer.innerHTML = `Current detected deadlocked processes: <strong style="color: #f87171;">${deadlocked.join(', ')}</strong>`;
+        rightLabel.innerHTML = `Deadlocked processes: <strong style="color: #f87171;">${deadlocked.join(', ')}</strong>`;
+      } else {
+        footer.innerHTML = `System is in a <strong style="color: #34d399;">SAFE STATE</strong>. All process requests can be satisfied without deadlock.`;
+        rightLabel.innerHTML = `Deadlocked processes: <strong style="color: #34d399;">None (Safe State)</strong>`;
+      }
+    }
+
+    function renderRecoveryEngine(deadlocked) {
+      const container = document.getElementById('recoveryListContainer');
+      if (deadlocked.length === 0) {
+        container.innerHTML = `
+          <div class="rec-card" style="border-color: rgba(16,185,129,0.4);">
+            <div class="rec-title" style="color: #34d399;">✓ No Recovery Required</div>
+            <div class="rec-desc" style="margin-bottom:0;">All processes are operating normally without circular wait contention.</div>
+          </div>
+        `;
+        return [];
+      }
+
+      const candidates = [];
+      deadlocked.forEach(pId => {
+        const proc = state.processes.find(p => p.id === pId);
+        if (!proc) return;
+
+        // Preemption options
+        proc.alloc.forEach((allocCount, rIdx) => {
+          if (allocCount > 0) {
+            const res = state.resources[rIdx];
+            const cost = proc.priority * 3 - (rIdx * 2) + (allocCount * 2);
+            candidates.push({
+              type: 'Resource Preemption',
+              title: `Preempt 1 × ${res.id} from ${proc.id}`,
+              desc: `Temporarily takes 1 unit(s) of ${res.name} from ${proc.id}, rolling the process back so waiting processes can proceed.`,
+              cost: Math.max(4, cost),
+              pId: proc.id,
+              rIdx,
+              mode: 'preempt'
+            });
+          }
+        });
+
+        // Process Termination option
+        const totalHeld = proc.alloc.reduce((a, b) => a + b, 0);
+        const termCost = proc.priority * 9 + totalHeld * 5;
+        candidates.push({
+          type: 'Process Termination',
+          title: `Terminate ${proc.id} (${proc.name})`,
+          desc: `Terminates ${proc.id} and releases ${totalHeld} resource instance(s). This resolves the remaining deadlock.`,
+          cost: termCost,
+          pId: proc.id,
+          mode: 'terminate'
+        });
+      });
+
+      candidates.sort((a, b) => a.cost - b.cost);
+
+      container.innerHTML = candidates.map((c, idx) => `
+        <div class="rec-card ${idx === 0 ? 'recommended' : ''}">
+          <div class="rec-top">
+            <span>#${idx + 1} • ${c.type}</span>
+            <span class="rec-cost">Cost: ${c.cost}</span>
+          </div>
+          <div class="rec-title">${c.title}</div>
+          <div class="rec-desc">${c.desc}</div>
+          <button class="${idx === 0 ? 'btn-primary' : 'btn-secondary'}"
+                  onclick="applyRecovery('${c.mode}', '${c.pId}', ${c.rIdx ?? -1})">
+            ${idx === 0 ? '✦ Execute Recommended Recovery' : 'Apply Recovery Action'}
+          </button>
+        </div>
+      `).join('');
+
+      return candidates;
+    }
+
+    function applyRecovery(mode, pId, rIdx) {
+      const proc = state.processes.find(p => p.id === pId);
+      if (!proc) return;
+
+      if (mode === 'preempt' && rIdx >= 0) {
+        proc.alloc[rIdx] = Math.max(0, proc.alloc[rIdx] - 1);
+        const resId = state.resources[rIdx].id;
+        // Fulfill a waiting process if possible
+        const waiter = state.processes.find(p => p.id !== pId && p.req[rIdx] > 0);
+        if (waiter) {
+          waiter.req[rIdx] -= 1;
+          waiter.alloc[rIdx] += 1;
+          addLog(`Recovery: Preempted 1 × ${resId} from ${pId} and granted to waiting process ${waiter.id}.`);
+        } else {
+          addLog(`Recovery: Preempted 1 × ${resId} from ${pId} back to kernel pool.`);
+        }
+      } else if (mode === 'terminate') {
+        proc.alloc = proc.alloc.map(() => 0);
+        proc.req = proc.req.map(() => 0);
+        addLog(`Recovery: Terminated process ${proc.id} (${proc.name}) and reclaimed all held resources.`);
+      }
+      renderAll();
+    }
+
+    function terminateAllDeadlocked() {
+      const deadlocked = detectDeadlockedProcesses();
+      if (deadlocked.length === 0) return;
+      deadlocked.forEach(id => {
+        const p = state.processes.find(proc => proc.id === id);
+        if (p) {
+          p.alloc = p.alloc.map(() => 0);
+          p.req = p.req.map(() => 0);
+        }
+      });
+      addLog(`Emergency Recovery: Terminated all deadlocked processes (${deadlocked.join(', ')}).`);
+      renderAll();
+    }
+
+    // --- COMPARATIVE GRAPH (CHART.JS) ---
+    function updateComparativeCharts(recoveryActions) {
+      const ctxProc = document.getElementById('processCompChart').getContext('2d');
+      const ctxRec = document.getElementById('recoveryCompChart').getContext('2d');
+
+      const procLabels = state.processes.map(p => `${p.id} (${p.name})`);
+      const heldData = state.processes.map(p => p.alloc.reduce((a, b) => a + b, 0));
+      const reqData = state.processes.map(p => p.req.reduce((a, b) => a + b, 0));
+
+      if (processChartInstance) processChartInstance.destroy();
+      processChartInstance = new Chart(ctxProc, {
+        type: 'bar',
+        data: {
+          labels: procLabels,
+          datasets: [
+            {
+              label: 'Allocated Instances',
+              data: heldData,
+              backgroundColor: 'rgba(16, 185, 129, 0.75)',
+              borderColor: '#10b981',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: 'Pending Requests',
+              data: reqData,
+              backgroundColor: 'rgba(245, 158, 11, 0.75)',
+              borderColor: '#f59e0b',
+              borderWidth: 1,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#8b9bb4', font: { size: 10 } } }
+          },
+          scales: {
+            x: { ticks: { color: '#8b9bb4', font: { size: 10 } }, grid: { color: '#16223b' } },
+            y: { beginAtZero: true, ticks: { stepSize: 1, color: '#8b9bb4', font: { size: 10 } }, grid: { color: '#16223b' } }
+          }
+        }
+      });
+
+      const topActions = recoveryActions.slice(0, 5);
+      const recLabels = topActions.length > 0
+        ? topActions.map((a, i) => `#${i + 1} ${a.title.replace('Terminate ', 'Term ')}`)
+        : ['System Safe (0 Cost)'];
+      const recCosts = topActions.length > 0 ? topActions.map(a => a.cost) : [0];
+      const recColors = topActions.map(a =>
+        a.mode === 'preempt' ? 'rgba(14, 165, 233, 0.8)' : 'rgba(239, 68, 68, 0.8)'
+      );
+
+      if (recoveryChartInstance) recoveryChartInstance.destroy();
+      recoveryChartInstance = new Chart(ctxRec, {
+        type: 'bar',
+        data: {
+          labels: recLabels,
+          datasets: [
+            {
+              label: 'Recovery Overhead Cost',
+              data: recCosts,
+              backgroundColor: recColors.length ? recColors : ['rgba(16, 185, 129, 0.7)'],
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#8b9bb4', font: { size: 10 } } }
+          },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: '#8b9bb4', font: { size: 10 } }, grid: { color: '#16223b' } },
+            y: { ticks: { color: '#8b9bb4', font: { size: 10 } }, grid: { color: '#16223b' } }
+          }
+        }
+      });
+    }
+
+    function renderMatricesAndTrace(avail, deadlocked) {
+      const resHeaders = state.resources.map(r => `<th>${r.id}</th>`).join('');
+      const rows = state.processes.map(p => `
+        <tr>
+          <td><strong>${p.id}</strong> (${p.name})</td>
+          ${p.alloc.map(v => `<td>${v}</td>`).join('')}
+          ${p.req.map(v => `<td style="color:#fbbf24;">${v}</td>`).join('')}
+        </tr>
+      `).join('');
+
+      document.getElementById('matrixTableWrap').innerHTML = `
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Process</th>
+              <th colspan="${state.resources.length}">Allocation Matrix</th>
+              <th colspan="${state.resources.length}">Request Matrix</th>
+            </tr>
+            <tr>
+              <th>ID</th>${resHeaders}${resHeaders}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      const traceBox = document.getElementById('bankerTraceWrap');
+      if (deadlocked.length > 0) {
+        traceBox.innerHTML = `
+          <p style="color:#f87171;">[UNSAFE / DEADLOCKED] Available Vector: [${avail.join(', ')}]</p>
+          <p style="margin-top:6px;">Processes <strong>${deadlocked.join(', ')}</strong> hold resources required by peers while waiting on unavailable instances.</p>
+        `;
+      } else {
+        traceBox.innerHTML = `
+          <p style="color:#34d399;">[SAFE SEQUENCE VERIFIED] Available Vector: [${avail.join(', ')}]</p>
+          <p style="margin-top:6px;">Safe execution order exists for all active processes (${state.processes.map(p => p.id).join(' → ')}).</p>
+        `;
+      }
+    }
+
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      document.getElementById('tabView-rag').style.display = (tabName === 'rag' || tabName === 'logs') ? 'block' : 'none';
+      document.getElementById('comparativeGraphPanel').style.display = (tabName === 'rag' || tabName === 'comp') ? 'block' : 'none';
+      document.getElementById('tabView-matrices').style.display = tabName === 'matrices' ? 'block' : 'none';
+      document.getElementById('tabView-banker').style.display = tabName === 'banker' ? 'block' : 'none';
+    }
+
+    // Boot initial preset matching screenshot
+    window.addEventListener('DOMContentLoaded', () => {
+      loadPreset('complex', document.querySelectorAll('.btn-preset')[3]);
+    });
+  </script>
+</body>
+</html>
